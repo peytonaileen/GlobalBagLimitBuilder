@@ -16,6 +16,7 @@ shinyServer(function(input, output, session) {
     #Read in example creel data 
     creel_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_header.csv"))
     
+    creel_no_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_no_header.csv"), col_names = FALSE)
     #-----------------------------------------
     # Create multiple pages 
     #----------------------------------------- 
@@ -194,7 +195,7 @@ shinyServer(function(input, output, session) {
         if(input$exampData == "creel_header"){
             return(creel_header)
         } else{
-            return(NULL)
+            return(creel_no_header)
         }
         })
     
