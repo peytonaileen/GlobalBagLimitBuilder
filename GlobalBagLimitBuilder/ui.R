@@ -147,11 +147,10 @@ dashboardPage(
                                                 value = TRUE),
                                     selectInput(inputId="exampData",
                                                 label="Example data",
-                                                choices=c("Creel - header",
-                                                          "Creel - no header")),
-                                    actionButton("exmpData",
-                                                 "Load Example Data",
-                                                 icon("cloud-upload"))))
+                                                choices=c("Creel - header" = "creel_header",
+                                                          "Creel - no header"= "creel_no_header")),
+                                    DTOutput("ExDT")
+                                    ))
                     ),
             tabItem(tabName = "builder", 
                     sidebarLayout(

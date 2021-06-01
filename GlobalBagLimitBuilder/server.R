@@ -13,6 +13,9 @@ shinyServer(function(input, output, session) {
     fish_master<-country()
     
     
+    #Read in example creel data 
+    creel_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_header.csv"))
+    
     #-----------------------------------------
     # Create multiple pages 
     #----------------------------------------- 
@@ -183,5 +186,17 @@ shinyServer(function(input, output, session) {
             imageHeight = 300,
         )
     })
+    
+    #--------------------------------------------
+    # Load example data 
+    #--------------------------------------------
+    output$ExDT <- renderDataTable({
+        if(input$exampData == "creel_header"){
+            return(creel_header)
+        } else{
+            return(NULL)
+        }
+        })
+    
     
 }) # close server 
