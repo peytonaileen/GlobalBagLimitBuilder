@@ -20,10 +20,12 @@ shinyServer(function(input, output, session) {
     #-----------------------------------------
     # Create multiple pages 
     #----------------------------------------- 
+    
     NUM_PAGES <- 5
+    
     rv <- reactiveValues(page = 1)
-    show("above1")
-    show("below1")
+    shinyjs::show("above1")
+    shinyjs::show("below1")
     
     observe({
         toggleState(id = "prevBtn", condition = rv$page > 1)
@@ -35,26 +37,26 @@ shinyServer(function(input, output, session) {
     }
     
     observeEvent(input$prevBtn,{
-        lapply(1:NUM_PAGES, function(X) {hide(paste0("above", X)) })
-        lapply(1:NUM_PAGES, function(X) {hide(paste0("below", X)) })
+        lapply(1:NUM_PAGES, function(X) {shinyjs::hide(paste0("above", X)) })
+        lapply(1:NUM_PAGES, function(X) {shinyjs::hide(paste0("below", X)) })
         navPage(-1)
-        show(paste0("above", rv$page))
+        shinyjs:: show(paste0("above", rv$page))
         if(rv$page == 2 | rv$page == 3) {
-            show(paste0("below3"))
+            shinyjs::show(paste0("below3"))
         } else {
-            show(paste0("below", rv$page))
+            shinyjs::show(paste0("below", rv$page))
         }
     } )
     
     observeEvent(input$nextBtn, {
-        lapply(1:NUM_PAGES, function(X) {hide(paste0("above", X)) })
-        lapply(1:NUM_PAGES, function(X) {hide(paste0("below", X)) })
+        lapply(1:NUM_PAGES, function(X) {shinyjs::hide(paste0("above", X)) })
+        lapply(1:NUM_PAGES, function(X) {shinyjs::hide(paste0("below", X)) })
         navPage(1)
-        show(paste0("above", rv$page))
+        shinyjs::show(paste0("above", rv$page))
         if(rv$page == 2 | rv$page == 3) {
-            show(paste0("below3"))
+            shinyjs::show(paste0("below3"))
         } else {
-            show(paste0("below", rv$page))
+            shinyjs::show(paste0("below", rv$page))
         }
     } )
 
@@ -168,7 +170,7 @@ shinyServer(function(input, output, session) {
     
     output$map_species_table <- renderDT({
         datatable(map_species_list()[,1:2],
-                  colnames = c("Scientific name", "FishBase common name"),
+                  colnames = c("Species", "FishBase common name"),
                   rownames = FALSE,
                   selection = "single",
                   options = list(pageLength = 15,
@@ -186,18 +188,103 @@ shinyServer(function(input, output, session) {
             imageWidth = 300,
             imageHeight = 300,
         )
+       # print(map_species_list())
     })
     
     #--------------------------------------------
     # Load example data 
     #--------------------------------------------
-    output$ExDT <- renderDataTable({
-        if(input$exampData == "creel_header"){
-            return(creel_header)
-        } else{
-            return(creel_no_header)
+    # exDtData <- reactive({
+    #         
+    #          
+    #    
+    #     
+    # })
+    # 
+    # output$ExDT <- renderDataTable({
+    #     exDtData()
+    #     })
+    
+    
+    creel <- reactive({
+        if(is.null(input$customCreelData)){
+            if(input$exampData == "creel_header"){
+                return(creel_header)
+            } else{
+                return(creel_no_header)
+            }
         }
-        })
+        if(!is.null(input$customCreelData)){
+            file <- input$customCreelData
+            read_csv(file$datapath, col_names = c("Species", "Take")) %>% 
+                filter(Species !="species")
+            # if(input$header == TRUE){
+            #     read_csv(file$datapath, col_names = TRUE)
+            # } else {
+            #     read_csv(file$datapath, col_names = c("species", "take"))
+            # }
+        }
+    })
+    
+    output$creelDT <- renderDT({
+        creel()
+    })
+    
+    observeEvent(input$creelUpload,{
+        speciesData <- creel()
+        print(speciesData)
+    })
+    
+    # output$textChoice <- renderText({
+    #     if(is.null(creel())){
+    #         "Please select a method of creating a species list"
+    #     }
+    # })
+   speciesData <- reactive({
+       if(input$speciesListMethod == "upCreel"){
+           return(creel())
+       }
+       if(input$speciesListMethod == "mapList"){
+           return(map_species_list())
+           
+       }
+
+   })
+    
+    
+    
+    
+    
+    output$speciesSelectInput<- renderUI({
+        
+        multiInput(
+                    inputId = "speciesInput",
+                    label = "Select species to discuss",
+                    choices = sort(unique(speciesData()$Species))
+                )
+        # if(input$speciesListMethod == "upCreel"){
+        #     multiInput(
+        #         inputId = "speciesInput", 
+        #         label = "Select species to discuss", 
+        #         choices = sort(unique(speciesData()$Species))
+        #     )
+        # }
+        # if(input$speciesListMethod == "mapList"){
+        #     multiInput(
+        #         inputId = "speciesInput", 
+        #         label = "Select species to discuss", 
+        #         choices = sort(unique(speciesData()$Species))
+        #     )
+        #     
+        # }
+        
+        # observeEvent(input$speciesListMethod, {
+        #     updateMultiInput(session, "speciesInput")
+        # })
+        
+        
+       
+    })
     
     
 }) # close server 

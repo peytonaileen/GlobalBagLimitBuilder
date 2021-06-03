@@ -6,7 +6,11 @@
 #----------------------------------
 #Attach packages  
 #----------------------------------
-
+library(bsplus)
+library(shinyBS)
+library(rfishbase)
+library(leaflet)
+library(rgdal)
 
 library(tidyverse)
 library(shinythemes)
@@ -31,11 +35,7 @@ library(aws.s3)
 library(shinyalert)
 library(shinybusy)
 library(htmltools)
-library(bsplus)
-library(shinyBS)
-library(rfishbase)
-library(leaflet)
-library(rgdal)
+
 
 #----------------------------------
 #Create the user interface:
@@ -149,7 +149,7 @@ dashboardPage(
                                                 label="Example data",
                                                 choices=c("Creel - header" = "creel_header",
                                                           "Creel - no header"= "creel_no_header")),
-                                    DTOutput("ExDT")
+                                    DTOutput("creelDT")
                                     ))
                     ),
             tabItem(tabName = "builder", 
@@ -218,28 +218,33 @@ dashboardPage(
                   #Above previous / next
                   ########################################
                   
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "above1",
                           style = "background-color: white;",
-                          "content here"
-                          
+                          "content here", 
+                          br(),
+                          radioGroupButtons(inputId = "speciesListMethod", 
+                                               label = "Select method", 
+                                               choices = c("Use uploaded creel data" = "upCreel", 
+                                                           "Use map generated species list" = "mapList"))
+                          # textOutput("textChoice")
                       )# close step one above 
                       
                   ),
                   
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "above2",
                           style = "background-color: white;",
                           height="100%",
-                          h3("Step 2: Select species to discuss")
-                          
+                          h3("Step 2: Select species to discuss"),
+                          uiOutput("speciesSelectInput")
                       )#close above step 2
                       
                   ),
                   
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "above3",
                           style = "background-color: white;",
@@ -247,7 +252,7 @@ dashboardPage(
                           h3("Step 3: View historical catch data and develop bag limit proposals")
                       )# close above step 3 
                   ),
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "above4",
                           style = "background-color: white;",
@@ -255,7 +260,7 @@ dashboardPage(
                           h3("Step 4: Review and refine bag limit proposals")   
                       )#close above step 4
                   ),
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "above5",
                           style = "background-color: white;",
@@ -283,14 +288,14 @@ dashboardPage(
                   
                   
                   br(),
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "below3",
                           style = "background-color: white;",
                           h1("Below 3")
                       )# close below step 3
                   ),
-                  hidden(
+                  shinyjs::hidden(
                       wellPanel(
                           id = "below4",
                           style = "background-color: white;",
