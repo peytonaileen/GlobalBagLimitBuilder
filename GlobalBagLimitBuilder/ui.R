@@ -164,7 +164,7 @@ dashboardPage(
                                     id = "groupStep", 
                                     style = "background-color: whitesmoke; border-color: #66CDAA; text-align:center;",
                                     height="100%",
-                                    icon("check-circle", "fa-1x"), "Groups Selected:", 
+                                    icon("check-circle", "fa-1x"), "Method Selected:", 
                                     tags$style(".fa-check-circle{color:orange;}"),
                                     textOutput("selected_groupInput")
                                 ),
@@ -226,8 +226,8 @@ dashboardPage(
                           br(),
                           radioGroupButtons(inputId = "speciesListMethod", 
                                                label = "Select method", 
-                                               choices = c("Use uploaded creel data" = "upCreel", 
-                                                           "Use map generated species list" = "mapList"))
+                                               choices = c("Use uploaded creel data" = "Creel", 
+                                                           "Use map generated species list" = "Map"))
                           # textOutput("textChoice")
                       )# close step one above 
                       
@@ -292,7 +292,19 @@ dashboardPage(
                       wellPanel(
                           id = "below3",
                           style = "background-color: white;",
-                          h1("Below 3")
+                          h1("Historical take patterns for selected species"),
+                          numericInput(inputId = "sampleBag",
+                                       label = h5("Your proposed bag limit:"),
+                                       value = 10, 
+                                       min = 0, 
+                                       max = 50
+                          ),
+                          br(),
+                          textOutput("pct_take"), 
+                          br(), 
+                          plotOutput(outputId = "percentDecrease"), 
+                          br(), 
+                          plotOutput(outputId = "speciesRidgeline")
                       )# close below step 3
                   ),
                   shinyjs::hidden(

@@ -17,6 +17,9 @@ shinyServer(function(input, output, session) {
     creel_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_header.csv"))
     
     creel_no_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_no_header.csv"), col_names = FALSE)
+    
+    
+    colorScale<-rainbow(n=100)
     #-----------------------------------------
     # Create multiple pages 
     #----------------------------------------- 
@@ -67,22 +70,22 @@ shinyServer(function(input, output, session) {
     
     #STEP ONE 
     output$step_one_conditional<-reactive({
-        #!is.null(input$groupInput)
+        !is.null(input$speciesListMethod)
     })
     
     output$selected_groupInput <- renderText({
-        #paste(input$groupInput, ";")
+        paste(input$speciesListMethod)
     })
     outputOptions(output, 'step_one_conditional', suspendWhenHidden = FALSE)
     
     #STEP TWO 
     
     output$step_two_conditional<-reactive({
-        #!is.null(input$selectedSpecies)
+        !is.null(input$speciesInput)
     })
     
     output$selected_speciesInput <- renderText({
-        #paste(input$selectedSpecies, ";")
+        paste(input$speciesInput, ";")
     })
     outputOptions(output, 'step_two_conditional', suspendWhenHidden = FALSE)
     
@@ -217,7 +220,8 @@ shinyServer(function(input, output, session) {
         if(!is.null(input$customCreelData)){
             file <- input$customCreelData
             read_csv(file$datapath, col_names = c("Species", "Take")) %>% 
-                filter(Species !="species")
+                filter(Species !="species") %>% 
+                mutate(Take = as.numeric(Take))
             # if(input$header == TRUE){
             #     read_csv(file$datapath, col_names = TRUE)
             # } else {
@@ -230,10 +234,6 @@ shinyServer(function(input, output, session) {
         creel()
     })
     
-    observeEvent(input$creelUpload,{
-        speciesData <- creel()
-        print(speciesData)
-    })
     
     # output$textChoice <- renderText({
     #     if(is.null(creel())){
@@ -241,10 +241,10 @@ shinyServer(function(input, output, session) {
     #     }
     # })
    speciesData <- reactive({
-       if(input$speciesListMethod == "upCreel"){
+       if(input$speciesListMethod == "Creel"){
            return(creel())
        }
-       if(input$speciesListMethod == "mapList"){
+       if(input$speciesListMethod == "Map"){
            return(map_species_list())
            
        }
@@ -284,6 +284,129 @@ shinyServer(function(input, output, session) {
         
         
        
+    })
+    
+    #--------------------------------  
+    #Calculate median bag size for group using data_MOD 
+    #--------------------------------
+    
+    data_MOD <- reactive({
+        req(speciesData())
+        data_MOD<- speciesData() %>% 
+            filter(Species %in% input$speciesInput)
+        
+    })
+    
+    
+    sampleBagLimit<-reactive({
+        req(input$sampleBag, data_MOD(), input$speciesListMethod == "Creel")
+       
+        #Median historical take
+        bag_median <- median(data_MOD()$Take)
+        
+        #Vectors of new empirical distribution based on
+        bag_size_greater<-rep(input$sampleBag, NROW(which(data_MOD()$Take > input$sampleBag))) #This is a vector of values
+        bag_size_less<-data_MOD()$Take[which(data_MOD()$Take <= input$sampleBag)] #This is a vector of values
+        original_bag_vector<-data_MOD()$Take
+        new_bag_vector<-c(bag_size_greater,bag_size_less)
+        
+        #Bootstrapping analysis here so that we could convey uncertainty in the creel survey
+        n = 1000#number of boostrap samples
+        set.seed(1)
+        bootPercentReduction<-sapply(1:n, function(x){
+            sampOrig<-sample(data_MOD()$Take, size=NROW(data_MOD()$Take), replace = TRUE)
+            sampGreater<-rep(input$sampleBag, NROW(which(sampOrig > input$sampleBag))) #This is a vector of values
+            sampLess<-sampOrig[which(sampOrig <= input$sampleBag)] #This is a vector of values
+            origSum<-sum(sampOrig)
+            truncSum<-sum(c(sampGreater,sampLess))
+            round(abs((truncSum-origSum)/origSum)*100, 0)
+        })
+        
+        return(list(bag_median = bag_median, 
+                    original_bag_vector = original_bag_vector,
+                    new_bag_vector = new_bag_vector,
+                    minPercentReduction = min(bootPercentReduction),
+                    maxPercentReduction = max(bootPercentReduction)))
+    })
+    
+    output$median_bag_info <- renderText({
+        req(sampleBagLimit())
+        paste("Median historical take:", sampleBagLimit()$bag_median)
+    })
+    
+    output$pct_take <- renderText({
+        req(sampleBagLimit())
+        paste0("Plausible percentage reduction in take using bag limit: ", sampleBagLimit()$minPercentReduction, "%", " to ", sampleBagLimit()$maxPercentReduction, "%")
+    })
+    
+    #Projected take historgram
+    output$percentDecrease <- renderPlot({
+        req(sampleBagLimit())
+        
+        
+        ridge_decreased<- data.frame(Historical = c(sampleBagLimit()$original_bag_vector),
+                                     Projected = c(sampleBagLimit()$new_bag_vector)) %>% 
+            pivot_longer(cols = 1:2 ,
+                         names_to = "scenario", 
+                         values_to = "take")
+        
+        
+        ridge_decreased %>% 
+            ggplot(aes(x = take, fill = scenario))+
+            geom_histogram( binwidth = 1, alpha = 0.5, color="#e9ecef")+
+            theme_bw()+
+            scale_fill_manual(values=c("#66CDAA", "orange"))+
+            scale_x_continuous(limits=c(0,max(ridge_decreased$take)))+
+            theme(legend.position = "none", 
+                  panel.spacing = unit(0.1, "lines"), 
+                  text = element_text(size = 15), 
+                  plot.caption = element_text(hjust = 0.5, face = "italic"))+
+            labs( title = "Projected Distribution of Take Under Sample Bag Limit",
+                  y = "Frequency", 
+                  x = "Take per Trip (Number of Fish)"
+                  #caption = "The historical take is reflective of the distribution of take associated with the current selection. The projected take is \n reflective of the current selection under the sample bag limit. This projection assumes that all fishers previously \n taking more than the suggested bag limit, would now take the maximum amount of fish allowed."
+            ) +
+            facet_wrap(~scenario)
+        
+        
+    })
+    
+    #Species ridgeline plot 
+    
+    output$speciesRidgeline <- renderPlot({
+        req(input$speciesListMethod == "Creel")
+        if(NROW(data_MOD()) > 0){
+            
+            n_obs<-data.frame(species_MOD=unique(data_MOD()$Species),
+                              x = rep(max(data_MOD()$Take), NROW(unique(data_MOD()$Species))),
+                              y = unique(data_MOD()$Species),
+                              label = sapply(unique(data_MOD()$Species), FUN=function(x){ paste0("n=(",NROW(data_MOD()$Species[data_MOD()$Species==x]),")")})
+            )
+            
+            data_MOD() %>% 
+                arrange(desc(NROW(Species))) %>% 
+                ggplot(aes(x = Take,
+                           y = Species
+                ))+
+                geom_density_ridges(alpha = 0.5, 
+                                    aes(fill = Species, 
+                                        color = Species))+
+                scale_x_continuous(limits=c(0,max(data_MOD()$Take)))+
+                scale_color_manual(name = "species_group", values=colorScale) +    
+                
+                scale_fill_manual(name = "species_group", values=colorScale) +
+                theme_bw()+
+                theme(legend.position = "none", 
+                      panel.spacing = unit(0.1, "lines"), 
+                      text = element_text(size = 15), 
+                      plot.caption = element_text(hjust = 0.5, face = "italic"))+
+                labs( title = "Distribution of Historical Take by Species",
+                      y = "Species Name", 
+                      x = "Historical Take per Trip (Number of Fish)" 
+                      #caption = "The number of fish taken per trip per fisher is shown by species, where n is the number of trips"
+                ) +
+                geom_text(data=n_obs, aes(x=x, y=y, label = label), position=position_nudge(y= .25, x = -5))
+        }
     })
     
     
