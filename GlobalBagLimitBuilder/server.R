@@ -92,12 +92,12 @@ shinyServer(function(input, output, session) {
     #STEP Three
     
     output$step_three_conditional<-reactive({
-        #NROW(bag_proposals_data()) >0
+        NROW(bag_proposals_data()) >0
         
     })
     
     output$current_proposals_text <- renderText({
-        #paste(bag_proposals_data()$Proposal,  ";")
+        paste(bag_proposals_data()$Proposal,  ";")
     })
     outputOptions(output, 'step_three_conditional', suspendWhenHidden = FALSE)
     
@@ -222,11 +222,7 @@ shinyServer(function(input, output, session) {
             read_csv(file$datapath, col_names = c("Species", "Take")) %>% 
                 filter(Species !="species") %>% 
                 mutate(Take = as.numeric(Take))
-            # if(input$header == TRUE){
-            #     read_csv(file$datapath, col_names = TRUE)
-            # } else {
-            #     read_csv(file$datapath, col_names = c("species", "take"))
-            # }
+            
         }
     })
     
@@ -242,10 +238,28 @@ shinyServer(function(input, output, session) {
     # })
    speciesData <- reactive({
        if(input$speciesListMethod == "Creel"){
-           return(creel())
+           if(is.null(input$customCreelData)){
+               showModal(modalDialog(
+                   title = "Please upload creel data",
+                   easyClose = TRUE,
+                   footer = NULL
+               ))
+           } else {
+              return(creel()) 
+           }
+           
        }
        if(input$speciesListMethod == "Map"){
-           return(map_species_list())
+           
+           if(is.null(input$mymap_shape_click)){
+               showModal(modalDialog(
+                   title = "Please select a location on the map",
+                   easyClose = TRUE,
+                   footer = NULL
+               ))
+           } else {
+               return(map_species_list()) 
+           }
            
        }
 
@@ -409,5 +423,149 @@ shinyServer(function(input, output, session) {
         }
     })
     
+    #-----------------------------------------------
+    #  Retain bag proposals
+    #-----------------------------------------------
+    
+    #of the species selected for consideration, this is set included in a given bag proposal
+    output$speciesInputBag <- renderUI({
+        pickerInput(
+            inputId = "selectedSpeciesBag",
+            label = "Select / deselect species",
+            choices = input$speciesInput,
+            options = list(
+                `actions-box` = TRUE, 
+                style = "btn-primary"), 
+            multiple = TRUE
+        )
+    })
+    
+    
+    #Retained proposals
+    proposalList<-reactiveValues()
+    proposalEval<-reactiveValues()
+    
+    #Function for creating new proposals
+    createProposal<-function(nm, Species, proposedBag, restoredBag=FALSE, initDecision=NULL){
+        
+        #Input/output naming
+        divID <- nm
+        dtID <- paste0(divID, "DT")
+        btnID <- paste0(divID, "rmv")
+        
+        #Proposal list
+        proposalList[[divID]] <- list(Species = Species, `Proposed bag limit` = proposedBag)
+        str1 <- paste(strong("Proposal:"), divID)
+        str2 <- paste(strong("Species selected:"), proposalList[[divID]]$Species)
+        str3 <- paste(strong("Bag limit regulations:"), proposalList[[divID]]$`Proposed bag limit`)
+        
+        #Insert output in UI
+        insertUI(
+            selector = "#proposalList_Table",
+            ui = tags$div(id = divID,
+                          actionButton(btnID,
+                                       "Remove this proposal",
+                                       class = "pull-right"),
+                          uiOutput(dtID)
+            )
+        )
+       # outputOptions(output, dtID, suspendWhenHidden = FALSE)
+        
+        # create a listener on the newly-created button that will remove it from the app when clicked
+        observeEvent(input[[btnID]], {
+            removeUI(selector = paste0("#", divID))
+            proposalList[[divID]] <- NULL
+            proposalEval[[divID]] <- NULL
+        }, ignoreInit = TRUE, once = TRUE)
+    }
+    
+    #Response to user click retain BagProposal
+    observeEvent(input$saveBagProposal, {
+        
+        # handle the case when user does not provide ID
+        divID <- if (input$saveBagProposal_name == "") gsub("\\.", "", format(Sys.time(), "%H%M%OS3"))
+        else input$saveBagProposal_name
+        
+        # only create button if there is none
+        if (is.null(proposalList[[divID]]) & !is.null(input$selectedSpeciesBag)) {
+            
+            #create new proposal
+            createProposal(nm = divID,
+                           Species = paste(input$selectedSpeciesBag,collapse=", "),
+                           proposedBag = input$customBagText
+            )
+            
+            #Reset name input
+            updateSelectInput(session, "saveBagProposal_name",
+                              selected="")
+            updateSelectInput(session, "customBagText", 
+                              selected ="")
+            
+            #Create an auto-restore point
+             show_condition <- function(code) {
+                 tryCatch(code,
+                          condition = function(c) {
+                              showModal(modalDialog(
+                                  title = "Could not save or create restore point",
+                                  easyClose = TRUE,
+                                  footer = NULL
+                             ))
+                          }
+                 )
+             }
+
+             name <- gsub("\\.", "", format(Sys.time(), "%H%M%OS3"))
+             show_condition(
+                 space_putRDS(
+                     x = createRestorePoint(),
+                     object = paste0("/", userName, "/", name, ".rds"),
+                     bucket =  bucketBookmark
+                 )
+             )
+            
+            # otherwise, print a message to the console
+        } else {
+            # showModal(modalDialog(
+            #     title = "Cannot save proposal",
+            #     tags$p("Check the following:"),
+            #     tags$ul(
+            #         tags$li("At least 1 species must be selected"),
+            #         tags$li("Scenario name may already be in use"),
+            #     ),
+            #     easyClose = TRUE,
+            #     footer = NULL
+            # ))
+            # ERror associated with this chunk 
+        }
+    }) 
+    
+    #Converts proposalsList to a convenient data.frame
+    #Called by several functions. DO NOT DELETE THIS REACTIVE
+    bag_proposals_data<-reactive({
+        x <- names(proposalList)
+        tmp_table <- data.frame() 
+        for(i in x){
+            if(!is.null(proposalList[[i]])){ 
+                tmp_table <- rbind(tmp_table,
+                                   list(Proposal = i,
+                                        Species = proposalList[[i]]$Species,
+                                        Regulations = proposalList[[i]]$`Proposed bag limit`))
+                
+            }}
+        return(tmp_table)
+    })
+    
+    #Create table of options
+    output$bag_proposals_table<- DT::renderDT({
+        datatable(data.frame( bag_proposals_data()),
+                  selection = "single",
+                  rownames=FALSE,
+                  options = list(dom = c('ltp'), 
+                                 pageLength = 5, 
+                                 lengthMenu = c(5,10,15,20),
+                                 scrollY= "220px")
+        )
+    })
+    bag_proposals_table_Proxy<-dataTableProxy('bag_proposals_table')
     
 }) # close server 

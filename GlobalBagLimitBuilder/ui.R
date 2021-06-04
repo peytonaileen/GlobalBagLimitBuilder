@@ -74,21 +74,19 @@ dashboardPage(
                         br(),
                         hr(), 
                         br(),
-                        
-                        h2("Step 1&2: Select species to include", class="text-warning"),
-                        h4(
-                            "Develop your species list! Here you will have the opportunity to select the species group(s) you would like to include. Then you will have the option to further refine the list of species you wish to include. We recommend that individual species of particular concern in regard to either fishing or conservation objectives be evaluated separately."
-                        ),
+                        h2("Step 1: Select a method"),
+                        h4("Before using the app, you first must create your species list using one of two methods. If you have data containing species and the frequenct of take, you can upload it to view data visualizations that can aid in your decision making. If you do not have data, you can create a species list through our interactive map, by selecting the country in which you're opperating and from there narrowing to the species of interest."),
+                        h2("Step 2: Select species to include"),
+                        h4("Develop your species list! Here you will have the opportunity to select the specific species you would like to discuss. You can revisit this at any point to continue to refine and change this grouping before creating a bag limit proposal."),
                         icon("fish", "fa-6x"), icon("fish", "fa-6x"),icon("fish", "fa-6x"),
                         br(),
                         br(),
-                        h2("Step 3: View historical catch data and develop bag limit proposals", class="text-warning"),
-                        h4(
-                            "There are fishing effort interview surveys from multiple sources across the state of Hawai'i built into the app to inform discussions. The data you will see reflects your species selections. Data is represented as take of number of fish per individual per day. You also have the option to filter by location and gear type. Addional filtering options will vary by source.  Mulitiple figures will apear reflecting your selection, in order to give an understanding of similarities and differences between the species and species groups you have selected. Ultimately, historical catch data are intended to provide a frame of reference for drafting bag limit proposals."), 
+                        h2("Step 3: View historical catch data and develop bag limit proposals"),
+                        h4("Here you have the opportunity to draft bag limit proposals. This can be based on the data visualizations available if you have creel data, or can be based on discussion and other materials"), 
                         br(), 
                         icon("chart-area", "fa-8x"),
                         br(), 
-                        h4("Now to draft a bag limit proposal. You will have an option to further subset species from your original selection, to reflect insights gained from the data and group discussion using the dropdown. Then you can describe proposed bag limits. This can be as specific as proposed limits for the group (i.e. Species X, Y, & Z at a bag limit of 10), or be more vague such as simply stating the group is of high cultural value to the community and should be treated with particular attention (i.e. Manini should be protected). Then you will be prompted to name the proposal. We recommend this name be easily identifiable and concise. Finally, when you are satisfied with your selection, press 'Save Proposal' in order to move the draft to your saved proposals. After the proposal has been saved, you are free to clear all current selections and select a new grouping."
+                        h4("You will have an option to further subset species from your original selection, to reflect insights gained from the data and group discussion using the dropdown. Then you can describe proposed bag limits. This can be as specific as proposed limits for the group (i.e. Species X, Y, & Z at a bag limit of 10), or be more vague such as simply stating the group is of high cultural value to the community and should be treated with particular attention (i.e. Manini should be protected). Then you will be prompted to name the proposal. We recommend this name be easily identifiable and concise. Finally, when you are satisfied with your selection, press 'Save Proposal' in order to move the draft to your saved proposals. After the proposal has been saved, you are free to clear all current selections and select a new grouping."
                         ),
                         br(), 
                         icon("edit", "fa-8x"),
@@ -222,12 +220,14 @@ dashboardPage(
                       wellPanel(
                           id = "above1",
                           style = "background-color: white;",
-                          "content here", 
+                          h2("Select a method of creating your species list"),
+                          "Here you can choose if you'd like to upload creel data, or if you'd like to create a species list to discuss using the interactive map. If you choose to upload data, there will be visualization options that can help to make informed decisions. If you do not have data, using the interactive map is a great way to generate and capture discussion around bag limits for species in your area.",
                           br(),
                           radioGroupButtons(inputId = "speciesListMethod", 
                                                label = "Select method", 
                                                choices = c("Use uploaded creel data" = "Creel", 
-                                                           "Use map generated species list" = "Map"))
+                                                           "Use map generated species list" = "Map"), 
+                                            selected = FALSE)
                           # textOutput("textChoice")
                       )# close step one above 
                       
@@ -249,15 +249,34 @@ dashboardPage(
                           id = "above3",
                           style = "background-color: white;",
                           height="100%",
-                          h3("Step 3: View historical catch data and develop bag limit proposals")
-                      )# close above step 3 
+                          h3("Step 3: View historical catch data and develop bag limit proposals"), 
+                          uiOutput("speciesInputBag"),
+                          textAreaInput("customBagText", "Describe proposed bag regulations", 
+                                        placeholder = "Ex) Bag limit of ten surgeon fish, no more than 2 Kole, and one Kala"),
+                          textInput(
+                              inputId = "saveBagProposal_name",
+                              label = "Name your proposal:",
+                              placeholder = "Surgeonfish bag", 
+                              width = '50%'
+                          ),
+                          actionButton(
+                              inputId = "saveBagProposal",
+                              label = "Save proposal",
+                              class="btn btn-primary",
+                              icon = icon('paper-plane'),
+                              width = '50%'
+                          )
+                      )
                   ),
                   shinyjs::hidden(
                       wellPanel(
                           id = "above4",
                           style = "background-color: white;",
                           height="100%",
-                          h3("Step 4: Review and refine bag limit proposals")   
+                          h3("Step 4: Review and refine bag limit proposals"), 
+                          h5("Below are the draft proposals. Here you can evaluate the proposals, and finalize them or remove them."),
+                          br(),
+                          DT::DTOutput("bag_proposals_table", height="300px"),
                       )#close above step 4
                   ),
                   shinyjs::hidden(
@@ -311,7 +330,8 @@ dashboardPage(
                       wellPanel(
                           id = "below4",
                           style = "background-color: white;",
-                          h3("Below 4")
+                          h3("Below 4"), 
+                          tags$div(id = "proposalList_Table")
                       )# close below step 4
                   )
               )
