@@ -14,9 +14,13 @@ shinyServer(function(input, output, session) {
     
     
     #Read in example creel data 
-    creel_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_header.csv"))
+    creel_sin_species <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_sin_species.csv"))
     
-    creel_no_header <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_no_header.csv"), col_names = FALSE)
+    creel_multi_species <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_multi_species.csv"))
+    
+    creel_gear <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_gear.csv"))
+    
+    creel_groups <- read_csv(here("GlobalBagLimitBuilder","data", "example_creel", "creel_groups.csv"))
     
     
     colorScale<-rainbow(n=100)
@@ -194,35 +198,109 @@ shinyServer(function(input, output, session) {
        # print(map_species_list())
     })
     
+    #----------------------------------------------------------------------
+    # Create data frame of the categories with "unique" identifier 
+    #----------------------------------------------------------------------
+    
+    listCategories <- reactiveValues()
+    
+    createCategory <- function(name){
+        
+        catID <- gsub("\\.", "", format(Sys.time(), "%H%M%OS3"))  
+        catBID <- paste0(catID, "rmv")
+        
+        listCategories[[catID]] <- list(name = name)
+        
+        #----------------------------------
+        #UI for list of Categories
+        #----------------------------------
+        
+        #Create/update UI of category list (see UI that makes this sortable)
+        insertUI(
+            selector = "#catTable",
+            ui = tags$div(
+                id = catID,
+                `data-rank-id` = catID,
+                wellPanel(style = "background-color: lightgrey; border-radius:4px; padding-top: 10px; padding-bottom: 10px;",
+                          tags$table(
+                              tags$tr(
+                                  width = "100%",
+                                  tags$td(width = "90%", div(style = "font-size:14px;",  listCategories[[catID]]$name)),
+                                  tags$td(
+                                      width = "10%",
+                                      actionButton(catBID, "Remove option", class = "pull-right")
+                                  )
+                                  
+                              )
+                          ))
+            )
+        )
+        
+        #Create Observer for remove button and remove the category
+        observeEvent(input[[catBID]], {
+            removeUI(selector = paste0("#", catID))
+            listCategories[[catID]] <- NULL
+        }, ignoreInit = TRUE, once = TRUE)
+    }
+    
+    observeEvent(input$addCategory, {
+        
+        if (input$category1 == "") {
+            showModal(
+                modalDialog(
+                    title = "Please enter a category",
+                    easyClose = TRUE,
+                    footer = NULL
+                )
+            )
+        } else {
+            
+            createCategory(name = input$category1)
+            
+            updateTextInput(session, "category1", label = "Enter another category",value = "")
+            
+        }
+    })
+    
+    category_list_df <- reactive({
+        x <- names(listCategories)
+        cat_tmp_table <- data.frame()
+        for(i in x){
+            if(!is.null(listCategories[[i]])){ 
+                cat_tmp_table <- data.frame(rbind(cat_tmp_table,
+                                                 list(Name = listCategories[[i]]$name)))
+                
+            }}
+        return(cat_tmp_table)
+        
+    })
     #--------------------------------------------
     # Load example data 
     #--------------------------------------------
-    # exDtData <- reactive({
-    #         
-    #          
-    #    
-    #     
-    # })
-    # 
-    # output$ExDT <- renderDataTable({
-    #     exDtData()
-    #     })
-    
     
     creel <- reactive({
         if(is.null(input$customCreelData)){
-            if(input$exampData == "creel_header"){
-                return(creel_header)
-            } else{
-                return(creel_no_header)
-            }
+            if(input$exampData == "creel_multi_species"){
+                return(creel_multi_species)
+            } 
+            if(input$exampData == "creel_sin_species"){
+                return(creel_sin_species)
+            } 
+            if(input$exampData == "creel_gear"){
+                return(creel_gear)
+            } 
+            if(input$exampData == "creel_groups"){
+                return(creel_groups)
+            } 
         }
         if(!is.null(input$customCreelData)){
             file <- input$customCreelData
-            read_csv(file$datapath, col_names = c("Species", "Take")) %>% 
-                filter(Species !="species") %>% 
+            read_csv(file$datapath, col_names = c("Category", "Take")) %>% 
+                filter(Take != "take", 
+                       Take != "Take") %>% # add filter to take out any rows where take isn't a number
+                #create input for user the category contained in their data
                 mutate(Take = as.numeric(Take))
-            
+           
         }
     })
     
@@ -231,12 +309,14 @@ shinyServer(function(input, output, session) {
     })
     
     
-    # output$textChoice <- renderText({
-    #     if(is.null(creel())){
-    #         "Please select a method of creating a species list"
-    #     }
-    # })
    speciesData <- reactive({
+       if(is.null(input$speciesListMethod)){
+           showModal(modalDialog(
+                   title = "Please choose a method",
+                   easyClose = TRUE,
+                   footer = NULL
+               ))
+       }
        if(input$speciesListMethod == "Creel"){
            if(is.null(input$customCreelData)){
                showModal(modalDialog(
@@ -258,7 +338,22 @@ shinyServer(function(input, output, session) {
                    footer = NULL
                ))
            } else {
-               return(map_species_list()) 
+               map_cat<- map_species_list() %>% 
+                   rename(Category = Species)
+               return(map_cat)
+           }
+           
+       }
+       if(input$speciesListMethod == "Manual"){
+           
+           if(is.null(category_list_df())){
+               showModal(modalDialog(
+                   title = "Please add categories to discuss",
+                   easyClose = TRUE,
+                   footer = NULL
+               ))
+           } else {
+               return(category_list_df()) #CHANGE ERROR ASSOCIATED WITH THIS 
            }
            
        }
@@ -266,35 +361,25 @@ shinyServer(function(input, output, session) {
    })
     
     
-    
+    observeEvent(input$test,{
+        print(speciesData())
+    })
     
     
     output$speciesSelectInput<- renderUI({
-        
+        if(is.null(input$speciesListMethod)){
+            showModal(modalDialog(
+                title = "Please choose a method",
+                easyClose = TRUE,
+                footer = NULL
+            ))
+        } else {
         multiInput(
                     inputId = "speciesInput",
                     label = "Select species to discuss",
-                    choices = sort(unique(speciesData()$Species))
+                    choices = sort(unique(speciesData()$Category))
                 )
-        # if(input$speciesListMethod == "upCreel"){
-        #     multiInput(
-        #         inputId = "speciesInput", 
-        #         label = "Select species to discuss", 
-        #         choices = sort(unique(speciesData()$Species))
-        #     )
-        # }
-        # if(input$speciesListMethod == "mapList"){
-        #     multiInput(
-        #         inputId = "speciesInput", 
-        #         label = "Select species to discuss", 
-        #         choices = sort(unique(speciesData()$Species))
-        #     )
-        #     
-        # }
-        
-        # observeEvent(input$speciesListMethod, {
-        #     updateMultiInput(session, "speciesInput")
-        # })
+         }
         
         
        
@@ -307,7 +392,7 @@ shinyServer(function(input, output, session) {
     data_MOD <- reactive({
         req(speciesData())
         data_MOD<- speciesData() %>% 
-            filter(Species %in% input$speciesInput)
+            filter(Category %in% input$speciesInput)
         
     })
     
@@ -391,20 +476,20 @@ shinyServer(function(input, output, session) {
         req(input$speciesListMethod == "Creel")
         if(NROW(data_MOD()) > 0){
             
-            n_obs<-data.frame(species_MOD=unique(data_MOD()$Species),
-                              x = rep(max(data_MOD()$Take), NROW(unique(data_MOD()$Species))),
-                              y = unique(data_MOD()$Species),
-                              label = sapply(unique(data_MOD()$Species), FUN=function(x){ paste0("n=(",NROW(data_MOD()$Species[data_MOD()$Species==x]),")")})
+            n_obs<-data.frame(species_MOD=unique(data_MOD()$Category),
+                              x = rep(max(data_MOD()$Take), NROW(unique(data_MOD()$Category))),
+                              y = unique(data_MOD()$Category),
+                              label = sapply(unique(data_MOD()$Category), FUN=function(x){ paste0("n=(",NROW(data_MOD()$Category[data_MOD()$Category==x]),")")})
             )
             
             data_MOD() %>% 
-                arrange(desc(NROW(Species))) %>% 
+                arrange(desc(NROW(Category))) %>% 
                 ggplot(aes(x = Take,
-                           y = Species
+                           y = Category
                 ))+
                 geom_density_ridges(alpha = 0.5, 
-                                    aes(fill = Species, 
-                                        color = Species))+
+                                    aes(fill = Category, 
+                                        color = Category))+
                 scale_x_continuous(limits=c(0,max(data_MOD()$Take)))+
                 scale_color_manual(name = "species_group", values=colorScale) +    
                 
@@ -567,5 +652,8 @@ shinyServer(function(input, output, session) {
         )
     })
     bag_proposals_table_Proxy<-dataTableProxy('bag_proposals_table')
+    
+    
+    
     
 }) # close server 
