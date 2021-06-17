@@ -353,13 +353,20 @@ shinyServer(function(input, output, session) {
                    footer = NULL
                ))
            } else {
-               return(category_list_df()) #CHANGE ERROR ASSOCIATED WITH THIS 
+               cat_list <- category_list_df() %>% 
+                   rename(Category = Name)
+               return(cat_list) #CHANGE ERROR ASSOCIATED WITH THIS 
            }
            
        }
 
    })
     
+   # observeEvent(input$speciesListMethod,{
+   #     if(input$speciesListMethod == "Map"){
+   #     shinyjs::hide("below3")
+   #     }
+   # })
     
     observeEvent(input$test,{
         print(speciesData())
